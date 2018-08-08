@@ -3,6 +3,7 @@ package com.special.minispring;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Arrays;
 
 /**
  * Created by Special on 2018/8/7 15:54
@@ -21,11 +22,7 @@ public class Test {
         String str = "2223class";
         String result = str.replace(".class", "");
         System.out.println(result);
-        Proxy.newProxyInstance(Test.class.getClassLoader(), str.getClass().getInterfaces(), new InvocationHandler() {
-            public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-                method.invoke(proxy, args);
-                return proxy;
-            }
-        });
+        String[] strs = new String[]{"222"};
+        System.out.println(Arrays.toString(strs));
     }
 }

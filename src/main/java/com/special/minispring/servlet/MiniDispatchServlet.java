@@ -5,11 +5,11 @@ import com.special.minispring.annotation.Controller;
 import com.special.minispring.annotation.RequestMapping;
 import com.special.minispring.annotation.Service;
 import com.special.minispring.component.Handler;
+import com.special.minispring.util.ClassUtils;
 import com.special.minispring.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -18,15 +18,12 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -38,9 +35,9 @@ public class MiniDispatchServlet extends HttpServlet {
 
     private Properties contextConfig = new Properties();
 
-    private List<String> classNames = new ArrayList<String>();
+    private List<String> classNames = new ArrayList<>();
 
-    private Map<String, Object> beanInstances = new ConcurrentHashMap<String, Object>();
+    private Map<String, Object> beanInstances = new ConcurrentHashMap<>();
 
 //    private Map<String, Method> handlerMapping = new ConcurrentHashMap<String, Method>();
     private List<Handler> handlerMapping = new ArrayList<>();
@@ -53,19 +50,14 @@ public class MiniDispatchServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        //6.请求分发
-//        String url = req.getRequestURI();
-//        String contextPath = req.getContextPath();
-//        url = url.replace(contextPath, "");
-//        Method method = handlerMapping.get(url);
-//        PrintWriter printWriter = resp.getWriter();
-//        if(method == null) {
-//            printWriter.write("404 not found!");
-//            return;
-//        }
-//        printWriter.write("successing!");
-
-        doDispath(req, resp);
+        /**
+         * 请求转发
+         */
+        try {
+            doDispath(req, resp);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -91,6 +83,12 @@ public class MiniDispatchServlet extends HttpServlet {
 
     }
 
+    /**
+     * 请求分发
+     * @param req
+     * @param resp
+     * @throws Exception
+     */
     private void doDispath(HttpServletRequest req, HttpServletResponse resp) throws Exception{
         Handler handler = getHandler(req);
         PrintWriter printWriter = resp.getWriter();
@@ -105,14 +103,49 @@ public class MiniDispatchServlet extends HttpServlet {
         Object[] paramValues = new Object[paramTypes.length];
         Map<String, String[]> params = req.getParameterMap();
         for(Map.Entry<String, String[]> entry : params.entrySet()) {
-
+            String value = Arrays.toString(entry.getValue()).replaceAll("\\[|\\]", "");
+            if(handler.getParamIndexMapping().containsKey(entry.getKey())) {
+                int index = handler.getParamIndexMapping().get(entry.getKey());
+                /**
+                 * 仅支持八大基本类型和String的转换
+                 * TODO:任意类型的转换
+                 */
+                paramValues[index] = ClassUtils.convertPrimitiveTypeOrString(paramTypes[index], value);
+            }
         }
+        /**
+         * 对request和response处理
+         */
+        int reqIndex = handler.getParamIndexMapping().get(HttpServletRequest.class.getName());
+        paramValues[reqIndex] = req;
+        int respIndex = handler.getParamIndexMapping().get(HttpServletResponse.class.getName());
+        paramValues[respIndex] = resp;
+
+        handler.getMethod().invoke(handler.getController(), paramValues);
     }
 
+    /**
+     * 对于给定的请求url，匹配对应的处理器
+     * 类似Spring中映射器模块
+     * @param req
+     * @return
+     */
     private Handler getHandler(HttpServletRequest req) {
-
+        String url = req.getRequestURI();
+        String contextPath = req.getContextPath();
+        url = url.replace(contextPath, "").replaceAll("/+", "/");
+        for(Handler handler : handlerMapping) {
+            Matcher matcher = handler.getPattern().matcher(url);
+            if(matcher.matches()) {
+                return handler;
+            }
+        }
+        return null;
     }
 
+    /**
+     * 初始化映射器
+     */
     private void initHandlerMapping() {
         for(Map.Entry<String, Object> entry : beanInstances.entrySet()) {
             Class<?> clazz = entry.getValue().getClass();
@@ -136,6 +169,9 @@ public class MiniDispatchServlet extends HttpServlet {
         }
     }
 
+    /**
+     * 依赖注入
+     */
     private void doAutowired() {
         if(!beanInstances.isEmpty()) {
             for(Map.Entry<String, Object> entry : beanInstances.entrySet()) {
@@ -167,6 +203,9 @@ public class MiniDispatchServlet extends HttpServlet {
         }
     }
 
+    /**
+     * 向容器注册bean
+     */
     private void doInstance() {
         if (!classNames.isEmpty()) {
             try {
@@ -208,6 +247,10 @@ public class MiniDispatchServlet extends HttpServlet {
         }
     }
 
+    /**
+     * 扫描出给定基础包下的所有的类
+     * @param packageName
+     */
     private void doScanner(String packageName) {
         URL url = this.getClass().getClassLoader().getResource("/" + packageName.replaceAll("\\.", "/"));
         File baseScanDir = new File(url.getFile());
@@ -223,6 +266,12 @@ public class MiniDispatchServlet extends HttpServlet {
         }
     }
 
+    /**
+     * 加载配置文件
+     * 此处硬编码为Properties
+     * TODO:灵活的支持各种配置文件
+     * @param location
+     */
     private void doLoadConfig(String location) {
         InputStream is = this.getClass().getClassLoader().getResourceAsStream(location);
         try {

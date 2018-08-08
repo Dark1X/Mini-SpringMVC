@@ -11,4 +11,9 @@ public class DemoService {
     public void add(String name) {
         System.out.println("添加成功");
     }
+
+    public String get(String name) {
+        System.out.println("get " + name);
+        return "I am " + name;
+    }
 }

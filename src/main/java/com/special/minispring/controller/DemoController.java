@@ -8,6 +8,8 @@ import com.special.minispring.service.DemoService;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
 
 /**
  * Created by Special on 2018/7/26 15:30
@@ -19,13 +21,24 @@ public class DemoController {
     DemoService demoService;
 
     @RequestMapping("/")
-    public String index() {
-        return "test success!";
+    public void index(HttpServletRequest req, HttpServletResponse resp) {
+        try {
+            PrintWriter printWriter = resp.getWriter();
+            printWriter.write("test successsing!");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @RequestMapping("/add")
     public void add(HttpServletRequest req, HttpServletResponse resp,
                     @RequestParam("name") String name) {
-        demoService.add(name);
+        String result = demoService.get(name);
+        try {
+            PrintWriter printWriter = resp.getWriter();
+            printWriter.write(result);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
