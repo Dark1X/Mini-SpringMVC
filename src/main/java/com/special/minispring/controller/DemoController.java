@@ -20,7 +20,7 @@ public class DemoController {
     @Autowired
     DemoService demoService;
 
-    @RequestMapping("/")
+    @RequestMapping("/ddd")
     public void index(HttpServletRequest req, HttpServletResponse resp) {
         try {
             PrintWriter printWriter = resp.getWriter();
